@@ -1962,17 +1962,27 @@ export interface Config extends ProtocolConfig, ModelListingConfig {
 
 - `inject`: `llm`
 - `refs`: `Api` (`@earendil-works/pi-ai`) · `CacheRetention` (`@earendil-works/pi-ai`) · `Model` (`@earendil-works/pi-ai`) · `ModelThinkingLevel` (`@earendil-works/pi-ai`) · `OpenAICompletionsCompat` (`@earendil-works/pi-ai`) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets` (`@earendil-works/pi-ai`) · `Transport` (`@earendil-works/pi-ai`) · `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/llm/llm-pi-ai/src/config.ts:222`](../packages/llm/llm-pi-ai/src/config.ts)
+- `source`: [`packages/llm/llm-pi-ai/src/config.ts:223`](../packages/llm/llm-pi-ai/src/config.ts)
 
 ```ts config-catalog
 /** Plugin configuration: the provider routes this instance owns. */
 export interface Config {
+  /** Opt-in sticky credential pools by provider route; omission retains single-key authentication. */
+  credentialPools?: Record<string, CredentialPoolConfig>
   /**
    * pi-ai provider routes, keyed by provider. An empty (or omitted) dict is
    * the dormant settings-driven posture: the adapter mounts with no routes
    * and registers them the moment a settings section supplies profiles.
    */
   providers: Volatile<Record<string, PiAiProviderProfile>>
+}
+
+/** One provider's ordered credential references and fallback quota window. */
+export interface CredentialPoolConfig {
+  /** Distinct references in allocation order; values never enter configuration. */
+  apiKeyEnvs: string[]
+  /** Wait after a quota failure with no provider delay; omission uses five hours. */
+  cooldownMs?: number
 }
 
 /** Configuration for one pi-ai provider route; the `providers` dict key IS the route. */

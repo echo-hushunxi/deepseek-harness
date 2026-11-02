@@ -1097,6 +1097,26 @@ Types: [LlmFailure](llm-streaming.zh.md) · [ResolvedRetryPolicy](llm-streaming.
 
 Source: [`packages/core/agent/src/runtime-types.ts`](../../packages/core/agent/src/runtime-types.ts)
 
+<a id="agentresolve-session--waterfall"></a>
+
+#### `agent/resolve-session` — waterfall
+
+Resolve or restore one existing ordinary Session through its owning controller. Providers preserve Session identity, composition, and subagent ownership.
+
+```ts cordis-catalog
+/**
+ * Resolve or restore one existing ordinary Session through its owning controller.
+ * Providers preserve Session identity, composition, and subagent ownership.
+ * @mode waterfall
+ * @param sessionId - existing ordinary Session to activate; never a new identity.
+ * @param next - delegate to the next restoration provider.
+ * @returns the live Agent, or rejection when restoration is unavailable or refused.
+ */
+'agent/resolve-session'(sessionId: SessionId, next: () => Promise<Agent>): Promise<Agent>
+```
+
+Source: [`packages/core/agent/src/runtime-types.ts`](../../packages/core/agent/src/runtime-types.ts)
+
 <a id="agentstatus--emit"></a>
 
 #### `agent/status` — emit

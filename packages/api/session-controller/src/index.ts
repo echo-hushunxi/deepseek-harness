@@ -191,6 +191,11 @@ export class SessionController extends TypertRemoteService {
     ctx.typert.resources.register('session', { resolve: resolveSessionResource })
     this.agents = new ApiSessionAgentController(ctx)
     this.agents.initialize()
+    ctx.on('agent/resolve-session', async (sessionId) => {
+      const result = await this.agents.resolveAgent(sessionId)
+      if ('error' in result) throw result.error
+      return result.agent
+    })
     this.commands = new SessionCommandController(ctx, this.agents, process.cwd())
     ctx.effect(() => ctx.fileUploads.registerAgentResolver(async (sessionId) => {
       const result = await this.agents.resolveAgent(sessionId)

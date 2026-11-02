@@ -90,6 +90,23 @@ Each profile may set a `retryPolicy`; omission uses normal mode with five retrie
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-llm-pi-ai) is the exhaustive source for every accepted field and its JSDoc.
 
+### Pin a credential to each conversation
+
+Set top-level `credentialPools` beside `providers` to opt a route into conversation-owned authentication. The pool requires Agent, Session persistence, and Storage Domain services. Credential values remain in the credential service; only references, assignments, and deadlines are stored in the `pi_ai_credential_pool` domain.
+
+```yaml
+credentialPools:
+  kimi-coding:
+    apiKeyEnvs: [KIMI_CODING_API_KEY, KIMI_CODING_API_KEY_2, KIMI_CODING_API_KEY_3]
+    cooldownMs: 18000000
+```
+
+New conversations allocate the next available key when their selected route is pooled; a route selected later allocates on its first request. Follow-ups, retries, resumed conversations, and delegated children retain their root conversation's reference for that provider. Ordinary forks allocate independently. Removing a pinned reference fails with `MISSING_CREDENTIAL` instead of switching keys. After one cycle, available keys may serve more than one conversation; assignments are stable, not exclusive leases. With every key cooling, a new conversation binds to the earliest available key and waits for it.
+
+A `RATE_LIMIT`, `QUOTA`, or HTTP 429 failure records its time and deadline before waiting. A positive provider `Retry-After` takes precedence; without one, the configured fallback is five hours. A live Agent retries its original step with the same key, and user cancellation removes that pending retry. Shutdown preserves the obligation. On restart, due records restore the original root through `agent/resolve-session`; Web provides restoration, while other embeddings register a provider for that event. Missing Sessions retire their pending records. Restoration errors keep the records and report actionable diagnostics; they do not create another Session.
+
+Restart recovery adds one logged `credential-cooldown` continuation: “Continue the interrupted task after the provider credential cooldown. Preserve completed work and continue from the existing conversation.” Delivery is at least once: a crash between durable inbox insertion and retiring the pending metadata can repeat the wake. Operators must keep tools safe to repeat. Pooled inference calls, including auxiliary calls, must carry an existing Session id; otherwise they fail with `MISSING_SESSION` before provider I/O. Auxiliary quota failures cool the same credential but do not schedule a new Agent turn. Direct model calls without an Agent remain single-attempt, and discovery uses the first reference without allocating a conversation.
+
 ### Sign in to a provider
 
 A provider pi-ai ships a login for can be signed into through the harness authorization seam: the flow offers OAuth or an interactive key prompt (a key is typed into pi-ai's own login prompt, not into the settings form), and the resulting credential is stored in the harness credential store at `llm-pi-ai/<provider id>`. The stored sign-in authenticates its route beneath any `apiKeyEnv` override and refreshes itself under the store's cross-process lock; signing out deletes the stored record. A hand-declared route key outside the record grammar — a lowercase hyphenated identifier — cannot be signed into, because a record write for it refuses with `LlmError('UNSTORABLE_PROVIDER_ID')`; such a route authenticates through `apiKeyEnv` or ambient provider settings instead.
@@ -220,7 +237,7 @@ The selected catalog model receives system-message text, conversation history, t
 
 #### Token effect
 
-Provider tokenization governs exact input. Retained images add the stable attachment and coordinate descriptor; the offload placeholder replaces an omitted image's visual tokens. Replay metadata may let a native API reuse provider-side state.
+Quota retries reuse logged input; restart recovery adds the logged continuation described above and can repeat input billing. Provider tokenization governs exact input. Retained images add the stable attachment and coordinate descriptor; the offload placeholder replaces an omitted image's visual tokens. Replay metadata may let a native API reuse provider-side state.
 
 #### KV Cache effect
 
@@ -262,7 +279,7 @@ These limits define where the adapter stops and future work begins. They are cur
 - **`GenerateOptions.stop` is unsupported** — pi-ai's common stream options cannot guarantee stop-sequence behavior across providers.
 - **Conversation update support comes only from the installed pi-ai catalog** — native system and tool updates require the catalog model’s mid-conversation compat flags, which profiles cannot set. Hand-declared routes and unflagged models receive later system text as user-role reminders and the complete current tool list at the start of each request.
 - **Images are accepted only in user and tool-result messages** — images in system, developer, or assistant history fail with `UNSUPPORTED_CONTENT` on both conversion paths.
-- **Provider HTTP status is unavailable** — pi-ai error events do not expose a stable HTTP status across providers.
+- **HTTP failure metadata depends on protocol** — Chat Completions, Responses, and Anthropic Messages retain HTTP status and valid Retry-After values through their Fetch override; other protocols and WebSocket errors may expose only the SDK error text.
 - **Retry policy is provider-owned, not an SDK retry** — pi-ai SDK retries stay disabled so durable agent steps and `llm/retry` events own every visible attempt, and direct `ctx.llm.stream()` calls remain single-attempt.
 - **Streamed JSON tool-call arguments avoid per-delta reparsing** — the installed pi-ai carries [`patches/@earendil-works__pi-ai@1.3.0.patch`](../../../patches/@earendil-works__pi-ai@1.3.0.patch), which removes the per-delta re-parse of the whole accumulated argument JSON in every stream adapter (upstream [earendil-works/pi#9265](https://github.com/earendil-works/pi/issues/9265)); unpatched, a multi-megabyte argument stream costs O(n²) CPU on the event loop and stalls every session in the process. Completion events supply parsed arguments; Responses may parse at both argument completion and output-item completion. This adapter reads only delta strings and finalized arguments. Re-apply or retire the patch on every pi-ai upgrade.
 - **Gemini tool-call thought signatures are patched into Chat Completions** — the same patch reads `tool_calls[].extra_content.google.thought_signature` from a streamed OpenAI-compatible response into the tool call's replay signature and sends it back as `extra_content` when the same model resumes (upstream [earendil-works/pi#10157](https://github.com/earendil-works/pi/issues/10157)); unpatched, Gemini rejects the next step of a tool-calling turn with HTTP 400. Encrypted OpenRouter reasoning details keep their `reasoning_details` replay.

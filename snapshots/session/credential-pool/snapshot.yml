@@ -1,0 +1,10 @@
+version: 1
+scenario: credential-pool
+profile: headless
+composition: credential-pool
+recording: authored
+header:
+  class: credential-pool
+  pin: true
+  systemPromptSource: text-turn
+  toolSchemasSource: text-turn

@@ -616,13 +616,6 @@ flowchart TD
   pkg_llm_deepseek --> pkg_launch_environment
   pkg_llm_deepseek --> pkg_llm
   pkg_llm_deepseek --> pkg_timeout
-  pkg_llm_pi_ai --> pkg_attachment
-  pkg_llm_pi_ai --> pkg_authorization
-  pkg_llm_pi_ai --> pkg_credentials
-  pkg_llm_pi_ai --> pkg_fs
-  pkg_llm_pi_ai --> pkg_launch_environment
-  pkg_llm_pi_ai --> pkg_llm
-  pkg_llm_pi_ai --> pkg_timeout
   pkg_agent --> pkg_llm
   pkg_agent --> pkg_scope
   pkg_agent --> pkg_session
@@ -666,6 +659,17 @@ flowchart TD
   pkg_llm_deepseek_api_key --> pkg_launch_environment
   pkg_llm_deepseek_api_key --> pkg_llm
   pkg_llm_deepseek_api_key --> pkg_llm_deepseek
+  pkg_llm_pi_ai --> pkg_agent
+  pkg_llm_pi_ai --> pkg_attachment
+  pkg_llm_pi_ai --> pkg_authorization
+  pkg_llm_pi_ai --> pkg_credentials
+  pkg_llm_pi_ai --> pkg_fs
+  pkg_llm_pi_ai --> pkg_launch_environment
+  pkg_llm_pi_ai --> pkg_llm
+  pkg_llm_pi_ai --> pkg_session
+  pkg_llm_pi_ai --> pkg_session_persistence
+  pkg_llm_pi_ai --> pkg_storage_domain
+  pkg_llm_pi_ai --> pkg_timeout
   pkg_llm_retry --> pkg_agent
   pkg_llm_retry --> pkg_brand
   pkg_llm_retry --> pkg_llm
@@ -1721,7 +1725,6 @@ flowchart TD
 | [`shell`](../packages/shell/shell) | `shell` | [`sandbox`](../packages/sandbox/sandbox), [`subprocess`](../packages/subprocess/subprocess) |
 | [`workspace`](../packages/workspace/workspace) | `workspace` | [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`storage`](../packages/storage/storage), [`storage-domain`](../packages/storage/storage-domain), [`typert-protocol`](../packages/typert/protocol) |
 | [`llm-deepseek`](../packages/llm/llm-deepseek) | `llm` | [`anonymous-user-id`](../packages/identity/anonymous-user-id), [`atomic-write`](../packages/util/atomic-write), [`attachment`](../packages/attachment/attachment), [`deepseek-llm-api-extensions`](../packages/llm/deepseek-llm-api-extensions), [`fs`](../packages/fs/fs), [`home-paths`](../packages/util/home-paths), [`launch-environment`](../packages/util/launch-environment), [`llm`](../packages/llm/llm), [`timeout`](../packages/util/timeout) |
-| [`llm-pi-ai`](../packages/llm/llm-pi-ai) | `llm` | [`attachment`](../packages/attachment/attachment), [`authorization`](../packages/credentials/authorization), [`credentials`](../packages/credentials/credentials), [`fs`](../packages/fs/fs), [`launch-environment`](../packages/util/launch-environment), [`llm`](../packages/llm/llm), [`timeout`](../packages/util/timeout) |
 | [`agent`](../packages/core/agent) | `core` | [`llm`](../packages/llm/llm), [`scope`](../packages/core/scope), [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection), [`system-prompt`](../packages/core/system-prompt), [`typert-protocol`](../packages/typert/protocol), [`util-values`](../packages/util/values), [`workspace`](../packages/workspace/workspace) |
 | [`fs-local`](../packages/fs/fs-local) | `fs` | [`fs`](../packages/fs/fs) |
 | [`fs-observation-policy`](../packages/fs/fs-observation-policy) | `fs` | [`fs`](../packages/fs/fs) |
@@ -1735,6 +1738,7 @@ flowchart TD
 | [`bash-local`](../packages/shell/bash-local) | `shell` | [`shell`](../packages/shell/shell), [`subprocess`](../packages/subprocess/subprocess), [`timeout`](../packages/util/timeout) |
 | [`pwsh-local`](../packages/shell/pwsh-local) | `shell` | [`shell`](../packages/shell/shell), [`subprocess`](../packages/subprocess/subprocess), [`timeout`](../packages/util/timeout) |
 | [`llm-deepseek-api-key`](../packages/llm/llm-deepseek-api-key) | `llm` | [`credentials`](../packages/credentials/credentials), [`launch-environment`](../packages/util/launch-environment), [`llm`](../packages/llm/llm), [`llm-deepseek`](../packages/llm/llm-deepseek) |
+| [`llm-pi-ai`](../packages/llm/llm-pi-ai) | `llm` | [`agent`](../packages/core/agent), [`attachment`](../packages/attachment/attachment), [`authorization`](../packages/credentials/authorization), [`credentials`](../packages/credentials/credentials), [`fs`](../packages/fs/fs), [`launch-environment`](../packages/util/launch-environment), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`storage-domain`](../packages/storage/storage-domain), [`timeout`](../packages/util/timeout) |
 | [`llm-retry`](../packages/llm/llm-retry) | `llm` | [`agent`](../packages/core/agent), [`brand`](../packages/util/brand), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection), [`timeout`](../packages/util/timeout) |
 | [`agent-default-model`](../packages/core/agent-default-model) | `core` | [`agent`](../packages/core/agent), [`llm`](../packages/llm/llm) |
 | [`goal`](../packages/goal/goal) | `goal` | [`agent`](../packages/core/agent), [`brand`](../packages/util/brand), [`llm`](../packages/llm/llm), [`scope`](../packages/core/scope), [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection), [`typert-protocol`](../packages/typert/protocol) |

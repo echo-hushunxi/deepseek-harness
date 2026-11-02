@@ -147,13 +147,18 @@ describe('SessionController facade', () => {
     }
     await expect(resolveUploadAgent(sessionId)).resolves.toBe(agent)
     const activationError = new RemoteError('session/not-found', 'missing upload session', { sessionId })
-    vi.spyOn(
+    const resolveAgent = vi.spyOn(
       (controller as unknown as { agents: ApiSessionAgentController }).agents,
       'resolveAgent',
     ).mockResolvedValueOnce({ error: activationError })
     await expect(resolveUploadAgent(sessionId)).rejects.toBe(activationError)
 
     await expect(controller.resolveAgent(sessionId)).resolves.toEqual({ agent })
+    await expect(ctx.waterfall('agent/resolve-session', sessionId, () => {
+      throw new Error('controller did not provide Session restoration')
+    })).resolves.toBe(agent)
+    resolveAgent.mockResolvedValueOnce({ error: activationError })
+    await expect(ctx.waterfall('agent/resolve-session', sessionId, () => Promise.resolve(agent))).rejects.toBe(activationError)
     ctx.emit('agent/status', { agent, status: 'running' })
     ctx.emit('agent/error', { agent, turn: 1, step: 0, error: new Error('fixture failure') })
     session.append('user/message', createUserMessage({

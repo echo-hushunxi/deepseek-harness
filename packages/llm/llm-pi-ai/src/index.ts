@@ -74,10 +74,13 @@ import type { StoredModelDiscoveryProfile } from './discovery.ts'
 import { registerPiAiFlows } from './login.ts'
 import { providerDefaultsOf } from './provider-data.ts'
 import type { PiAiRequestHeaderContext } from './types.ts'
+import { CredentialPools } from './credential-pool.ts'
+import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 
 export { PiAiAdapter } from './adapter.ts'
 export type { PiAiAdapterOptions } from './adapter.ts'
 export type { PiAiRequestHeaderContext } from './types.ts'
+export type { CredentialPoolConfig } from './credential-pool.ts'
 export { Config } from './config.ts'
 export type {
   Options,
@@ -173,6 +176,17 @@ function directoryEntries(
 
 /** Register one generic pi-ai adapter for all configured provider routes. */
 export function apply(ctx: Context, config: Config): void {
+  const poolConfig = config.credentialPools ?? {}
+  const pooled = Object.keys(poolConfig).length > 0
+  let poolReady: Promise<CredentialPools | undefined> | undefined
+  if (pooled) {
+    ctx.inject(['agents', 'sessions', 'sessionPersistence', 'storageDomain'], (readyCtx) => {
+      const ready = CredentialPools.create(readyCtx, poolConfig)
+      poolReady = ready
+      readyCtx.effect(() => () => { poolReady = undefined })
+      return ready.then(() => undefined)
+    })
+  }
   ctx.inject(['settings'], (child) => { child.effect(() => child.settings.configure({ auto: false }, ctx.fiber)) })
   const settingsNs = ctx.fiber.entry?.options.id ?? NS
   let lastRaw: ReturnType<Config['providers']['get']> | undefined
@@ -209,8 +223,19 @@ export function apply(ctx: Context, config: Config): void {
   const resolveApiKey = async (
     provider: string,
     profile: ResolvedPiAiProviderProfile,
+    request?: Pick<GenerateOptions, 'sessionId' | 'signal'>,
   ): Promise<string | undefined> => {
-    const ref = profile.apiKeyEnv
+    const pooledRoute = Object.hasOwn(poolConfig, provider)
+    if (pooledRoute && poolReady === undefined) {
+      throw new LlmError('llm-pi-ai: credential pools are unavailable; mount agents, sessions, sessionPersistence, and storageDomain',
+        'MISSING_CREDENTIAL_POOL')
+    }
+    if (pooledRoute && request !== undefined && request.sessionId === undefined) {
+      throw new LlmError('llm-pi-ai: pooled inference requires its owning Session id; discovery does not allocate a key', 'MISSING_SESSION')
+    }
+    const credentialPools = pooledRoute ? await poolReady : undefined
+    const ref = credentialPools === undefined ? profile.apiKeyEnv
+      : await credentialPools.reference(provider, request?.sessionId, request?.signal)
     // Only a profile that names no credential at all defers to pi-ai's
     // provider-native discovery. Once one is named, a miss must fail loud:
     // handing pi-ai `undefined` would let it pick up an unrelated ambient key

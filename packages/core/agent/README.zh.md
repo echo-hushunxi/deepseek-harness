@@ -31,6 +31,8 @@ kind: "package-reference"
 
 `ctx.agents.create()` 在一个身份下构建全新 agent 与会话；`ctx.agents.resume()` 加载持久化会话并在此基础上重建 agent。两者都委托给已注册工厂，并返回 `AgentHandle`——唯一能拆除该 agent 的对象。发布和失败清理的时序见 [`AgentFactory`](src/index.ts)。在任一操作的 options 中设置 `parentAgent`，可使结果成为运行时子级；省略它则得到运行时根级。`get(id)`、`list()` 与 `roots()` 用于查找实时 agent；`isOwnedBy(id, parent)` 用于检验这项确切的实时所有权关系。
 
+需要重新激活已有普通会话的 Host 功能使用 `agent/resolve-session` 瀑布事件。控制器按原身份和组合恢复，拒绝属于子代理的身份，返回运行中的 Agent，不发送输入。后续唤醒由调用方负责。没有恢复实现时，由调用方报告该操作不可用。
+
 ```text
 const handle = await ctx.agents.create({
   sessionId,

@@ -42,6 +42,7 @@ import type {
   RouteCatalog,
 } from './catalog.ts'
 import { buildProvider, supportedProtocols } from './provider.ts'
+import type { CredentialPoolConfig } from './credential-pool.ts'
 
 /** Default maximum idle interval while an adapter stream read is outstanding. */
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
@@ -220,6 +221,8 @@ export interface ResolvedPiAiProviderProfile
 
 /** Plugin configuration: the provider routes this instance owns. */
 export interface Config {
+  /** Opt-in sticky credential pools by provider route; omission retains single-key authentication. */
+  credentialPools?: Record<string, CredentialPoolConfig>
   /**
    * pi-ai provider routes, keyed by provider. An empty (or omitted) dict is
    * the dormant settings-driven posture: the adapter mounts with no routes
@@ -229,7 +232,7 @@ export interface Config {
 }
 
 /** Plain options accepted by the provider resolver. */
-export type Options = { [K in keyof Config]?: Config[K] extends Volatile<infer T> ? T : never }
+export type Options = { [K in keyof Config]?: NonNullable<Config[K]> extends Volatile<infer T> ? T : Config[K] }
 
 const thinkingBudgets = z.object({
   minimal: z.number(),
@@ -350,6 +353,10 @@ const profile = z.object({
 
 /** Runtime schema for {@link Config}. */
 export const Config = z.object({
+  credentialPools: z.dict(z.object({
+    apiKeyEnvs: z.array(z.string().role('credential-ref')).required(),
+    cooldownMs: z.number().step(1).min(1).max(MAX_TIMER_DELAY_MS).default(18_000_000),
+  })).default({}),
   providers: z.dict(profile).default({}).volatile(),
 })
 

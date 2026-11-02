@@ -4780,6 +4780,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'payload', description: '.signal - the turn abort signal. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.' }],
   },
   {
+    name: 'agent/resolve-session',
+    mode: 'waterfall',
+    signature: '\'agent/resolve-session\'(sessionId: SessionId, next: () => Promise<Agent>): Promise<Agent>',
+    summary: 'Resolve or restore one existing ordinary Session through its owning controller.',
+    description: 'Resolve or restore one existing ordinary Session through its owning controller. Providers preserve Session identity, composition, and subagent ownership.',
+    parameters: [{ name: 'sessionId', description: 'existing ordinary Session to activate; never a new identity.' }, { name: 'next', description: 'delegate to the next restoration provider.' }],
+  },
+  {
     name: 'agent/status',
     mode: 'emit',
     signature: '\'agent/status\'(this: Scoped<Agent>, payload: { agent: Agent; status: AgentStatus }): void',

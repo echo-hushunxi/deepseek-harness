@@ -90,6 +90,23 @@ kind: "package-reference"
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-llm-pi-ai)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
+### 为每个会话固定凭据
+
+在 `providers` 旁设置顶层 `credentialPools`，即可为路由启用会话固定认证。密钥池需要 Agent、Session 持久化和 Storage Domain 服务。密钥值仍保存在凭据服务中；`pi_ai_credential_pool` 域只保存引用、分配结果和截止时间。
+
+```yaml
+credentialPools:
+  kimi-coding:
+    apiKeyEnvs: [KIMI_CODING_API_KEY, KIMI_CODING_API_KEY_2, KIMI_CODING_API_KEY_3]
+    cooldownMs: 18000000
+```
+
+新会话选择池中路由时分配下一个可用 key；稍后才选择该路由的会话在首次请求时分配。后续消息、重试、恢复的会话和委派子代理始终保留根会话在该提供方上的凭据引用。普通分叉独立分配。删除已绑定的引用会触发 `MISSING_CREDENTIAL`，不会切换 key。轮换一圈后，可用 key 可以服务多个会话；绑定保持稳定，不属于独占租约。全部 key 都在冷却时，新会话绑定最早可用的 key 并等待。
+
+`RATE_LIMIT`、`QUOTA` 或 HTTP 429 失败会先记录发生时间和恢复截止时间，再进入等待。提供方返回的正值 `Retry-After` 优先；没有时，配置的默认等待时间为五小时。运行中的 Agent 使用原 key 重试原步骤，用户取消会移除该待重试记录。关闭进程会保留恢复义务。重启后，到期记录通过 `agent/resolve-session` 恢复原根会话；Web 提供恢复实现，其他嵌入方需为该事件注册实现。原 Session 不存在时移除其待恢复记录。恢复错误保留记录并报告可执行的诊断，不会创建另一个 Session。
+
+重启恢复会加入一条已记录的 `credential-cooldown` 继续指令：“Continue the interrupted task after the provider credential cooldown. Preserve completed work and continue from the existing conversation.” 投递语义为至少一次：在收件箱持久化和移除待恢复元数据之间崩溃，可能重复唤醒。运维方需要确保工具可安全重复执行。启用密钥池的推理调用（包括辅助调用）必须携带已有 Session id，否则在访问提供方之前以 `MISSING_SESSION` 失败。辅助调用的额度失败会冷却同一个凭据，但不会安排新的 Agent 轮次。没有 Agent 的直接模型调用仍只尝试一次；模型发现使用首个引用，不分配会话。
+
 ### 登录提供方
 
 pi-ai 提供登录的提供方可以通过 harness 授权 seam 登录：流程提供 OAuth 或交互式密钥提示（密钥键入 pi-ai 自己的登录提示，而非设置表单），得到的凭据存储在 harness 凭据存储的 `llm-pi-ai/<provider id>` 记录中。存储的登录在其路由的 `apiKeyEnv` 覆盖之下完成认证，并在存储的跨进程锁下自行刷新；退出登录即删除存储记录。落在记录文法之外——小写连字符标识符——的手工声明路由键无法登录，因为对它的记录写入会以 `LlmError('UNSTORABLE_PROVIDER_ID')` 拒绝；这类路由改用 `apiKeyEnv` 或提供方 ambient 设置认证。
@@ -220,7 +237,7 @@ git add packages/llm/llm-pi-ai/src/provider-data.generated.ts
 
 #### Token 影响
 
-提供方分词决定精确输入。保留图片会添加稳定的附件与坐标描述符；卸载占位符会替代省略图片的视觉 token。回放元数据可能让原生 API 复用提供方侧状态。
+额度重试复用已记录的输入；重启恢复会添加上文所述的已记录继续指令，并可能重复计费输入。提供方分词决定精确输入。保留图片会添加稳定的附件与坐标描述符；卸载占位符会替代省略图片的视觉 token。回放元数据可能让原生 API 复用提供方侧状态。
 
 #### KV Cache 影响
 
@@ -262,7 +279,7 @@ pi-ai 事件变成 harness 的推理、文本、工具调用、用量与 finish 
 - **不支持 `GenerateOptions.stop`**——pi-ai 的通用流式选项无法跨提供方保证停止序列行为。
 - **对话更新支持只来自已安装的 pi-ai 目录**——原生系统与工具更新需要目录模型的对话中 compat 标志，profile 不能设置这些标志。手工声明的路由与未标记的模型会以用户角色提醒接收后续系统文本，并在每次请求开头接收完整的当前工具列表。
 - **图片只在 user 与工具结果消息中被接受**——system、developer 或 assistant 历史中的图片在两条转换路径上都会以 `UNSUPPORTED_CONTENT` 失败。
-- **提供方 HTTP 状态不可用**——pi-ai 错误事件不跨提供方暴露稳定 HTTP 状态。
+- **HTTP 失败元数据取决于协议**——Chat Completions、Responses 和 Anthropic Messages 通过 Fetch 覆盖保留 HTTP 状态及有效 Retry-After 值；其他协议和 WebSocket 错误可能只提供 SDK 错误文本。
 - **重试策略由提供方自有，而非 SDK 重试**——pi-ai SDK 重试保持禁用，因此持久 agent（智能体）步骤与 `llm/retry` 事件拥有每个可见尝试，直接 `ctx.llm.stream()` 调用仍是单次尝试。
 - **流式 JSON 工具调用参数避免逐 delta 重复解析**——安装的 pi-ai 带有 [`patches/@earendil-works__pi-ai@1.3.0.patch`](../../../patches/@earendil-works__pi-ai@1.3.0.patch)，它移除了每个流适配器中对整段累计参数 JSON 的逐 delta 重新解析（上游 [earendil-works/pi#9265](https://github.com/earendil-works/pi/issues/9265)）；未打补丁时，数 MB 的参数流会在事件循环上消耗 O(n²) CPU，并使进程内所有会话停滞。完成事件提供解析后的参数；Responses 可能在参数完成和输出项完成时分别解析。本适配器只读取 delta 字符串与最终参数。每次升级 pi-ai 时都要重新应用或撤销该补丁。
 - **Chat Completions 中的 Gemini 工具调用思考签名由补丁保留**——同一补丁把 OpenAI 兼容流式响应里的 `tool_calls[].extra_content.google.thought_signature` 读入工具调用的重放签名，并在同一模型继续时以 `extra_content` 发回（上游 [earendil-works/pi#10157](https://github.com/earendil-works/pi/issues/10157)）；未打补丁时，Gemini 会以 HTTP 400 拒绝工具调用轮次的下一步。OpenRouter 的加密推理详情仍通过 `reasoning_details` 重放。

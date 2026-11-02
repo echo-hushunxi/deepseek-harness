@@ -95,7 +95,11 @@ export interface PiAiAdapterOptions {
    * credential at all, because a named reference that misses throws `LlmError`
    * `MISSING_CREDENTIAL` rather than falling back.
    */
-  resolveApiKey: (provider: string, profile: ResolvedPiAiProviderProfile) => Promise<string | undefined>
+  resolveApiKey: (
+    provider: string,
+    profile: ResolvedPiAiProviderProfile,
+    request?: Pick<GenerateOptions, 'sessionId' | 'signal'>,
+  ) => Promise<string | undefined>
   /**
    * How every collection this adapter builds resolves auth the request-level
    * `apiKey` override does not cover. Required rather than optional: a
@@ -423,7 +427,10 @@ export class PiAiAdapter extends LlmAdapter {
       model,
       options.reasoningEffort ?? profile.reasoning,
     )
-    const apiKey = await this.config.resolveApiKey(options.provider, profile)
+    const apiKey = await this.config.resolveApiKey(options.provider, profile, {
+      ...options.sessionId === undefined ? {} : { sessionId: options.sessionId },
+      ...options.signal === undefined ? {} : { signal: options.signal },
+    })
 
     const consumer = new AbortController()
     const upstream = options.signal === undefined
@@ -455,8 +462,25 @@ export class PiAiAdapter extends LlmAdapter {
             maxBytes: profile.requestImageMaxBytes,
           },
         }, onReplayDegrade, updates.systemPromptUpdate === 'in-history')
+      // These HTTP protocols support the SDK's fetch override. Keep response
+      // status and Retry-After before the SDK flattens its error into text.
+      let httpFailure: { status: number; providerRetryAfterMs?: number } | undefined
+      const observeHttp = model.api === 'openai-completions' || model.api === 'openai-responses' || model.api === 'anthropic-messages'
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
+        ...observeHttp ? { fetch: async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+          const response = await fetch(input, init)
+          if (response.status >= 400) {
+            const retry = response.headers.get('retry-after')?.trim()
+            const delay = retry === undefined ? NaN
+              : /^\d+(?:\.\d+)?$/u.test(retry) ? Number(retry) * 1000 : Date.parse(retry) - Date.now()
+            httpFailure = {
+              status: response.status,
+              ...Number.isFinite(delay) && delay > 0 ? { providerRetryAfterMs: delay } : {},
+            }
+          }
+          return response
+        } } : {},
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
         ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
         ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },
@@ -472,7 +496,10 @@ export class PiAiAdapter extends LlmAdapter {
             exhausted = true
             return
           }
-          yield result.value
+          const chunk = result.value
+          yield chunk.type === 'finish' && chunk.reason.kind === 'error' && httpFailure !== undefined
+            ? { ...chunk, reason: { ...chunk.reason, failure: { ...chunk.reason.failure, ...httpFailure } } }
+            : chunk
         }
       } finally {
         if (!exhausted) {

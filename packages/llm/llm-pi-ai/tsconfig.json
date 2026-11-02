@@ -49,6 +49,21 @@
     },
     {
       "path": "../../settings/settings"
+    },
+    {
+      "path": "../../core/agent"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../session/session-persistence"
+    },
+    {
+      "path": "../../storage/storage-domain"
+    },
+    {
+      "path": "../../llm/llm-retry"
     }
   ]
 }

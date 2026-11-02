@@ -8,6 +8,12 @@ import * as PiAi from '../src/index.ts'
 import { assemble } from './assemble.ts'
 import { closeMockServers, mockServer, textEvents } from './mock-server.ts'
 
+declare module '@deepseek-ai/dsh-llm/types' {
+  interface LlmRequestPurposeMap {
+    'pi-ai-header-test': true
+  }
+}
+
 afterEach(async () => {
   await closeMockServers()
   vi.unstubAllEnvs()
@@ -63,10 +69,10 @@ it('composes request-local headers, enforces attribution, and removes disposed l
     headers.set('x-second-listener', 'yes')
     return next()
   })
-  await assemble(ctx, { model: 'deepseek-flash', messages: [], sessionId: SessionId('one') })
+  await assemble(ctx, { model: 'deepseek-flash', messages: [], sessionId: SessionId('one'), purpose: 'pi-ai-header-test' })
   await assemble(ctx, { model: 'deepseek-flash', messages: [] })
   expect(seen).toEqual([
-    { provider: 'deepseek', model: 'deepseek-flash', baseURL: server.url, sessionId: 'one' },
+    { provider: 'deepseek', model: 'deepseek-flash', baseURL: server.url, sessionId: 'one', purpose: 'pi-ai-header-test' },
     { provider: 'deepseek', model: 'deepseek-flash', baseURL: server.url },
   ])
   expect(server.headers[0]).toMatchObject({
